@@ -1,1 +1,1380 @@
-#123s
+#STEP1:feature extraction
+#RDkit
+#import library
+from rdkit import Chem
+from rdkit.Chem import Descriptors
+from rdkit.ML.Descriptors import MoleculeDescriptors
+import xlrd
+import xlwt
+
+#read data
+execl1 = xlrd.open_workbook(r'D:\STUDY\SUT\Dielectricconstant.xlsx')
+table = execl1.sheets()[3]
+rows = table.nrows
+col = table.col_values(0)
+col.pop(0)
+#Create Des_data.xlsx to store the calculated descriptor data
+Des_data_xlsx=xlwt.Workbook(encoding='utf-8')
+DDX_sheet1=Des_data_xlsx.add_sheet('descriptors_data')
+#The following is the descriptor process
+mol=Chem.MolFromSmiles(col[0])
+#Get all the descriptors that can be calculated and generate a list
+d_list = [x[0] for x in Descriptors._descList]
+#Calculate all descriptor data of the molecule
+calculator = MoleculeDescriptors.MolecularDescriptorCalculator(d_list)
+calculator=list(calculator.CalcDescriptors(mol))
+#Generate Des_data.xlsx and store the data
+for i in range(0,len(d_list)):
+    DDX_sheet1.write(0,i+1,d_list[i]) 
+    DDX_sheet1.write(1,i+1,calculator[i])
+DDX_sheet1.write(0,0,"Smiles")
+for i in range(len(col)):
+     DDX_sheet1.write(i+1,0,col[i])
+#Build a for loop to get the molecular smiles structure one by one
+for i in range(1,len(col)):
+    mol = Chem.MolFromSmiles(col[i])    
+    #Calculate all descriptor data of the molecule
+    calculator = MoleculeDescriptors.MolecularDescriptorCalculator(d_list)
+    calculator=list(calculator.CalcDescriptors(mol))
+    for j in range(0,len(d_list)):
+        DDX_sheet1.write(i+1,j+1,calculator[j])
+#Save the created excel dataset
+Des_data_xlsx.save(r'D:\STUDY\SUT\RDkit Descriptors.xlsx')
+
+
+
+
+
+#STEP2:Model Training
+#1.SVR
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVR
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.preprocessing import StandardScaler
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1].values 
+y = df.iloc[:, -1].values   
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+SVR_model = SVR()
+SVR_model.fit(X_train, y_train)
+
+y_train_pred = SVR_model.predict(X_train)
+y_test_pred = SVR_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('SVR',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\SVR.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#2.XGB
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1]  
+y = df.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+XGB_model = XGBRegressor(max_depth=2, random_state=42)
+XGB_model.fit(X_train, y_train)
+
+y_train_pred = XGB_model.predict(X_train)
+y_test_pred = XGB_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('XGB',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\XGB.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+#3.RF
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1] 
+y = df.iloc[:, -1]   
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+RF_model = RandomForestRegressor(random_state=42)
+
+RF_model.fit(X_train, y_train)
+
+y_train_pred = RF_model.predict(X_train)
+y_test_pred = RF_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('RF',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\RF.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+#4.ANN
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from keras.models import Sequential
+from keras.layers import Dense
+import tensorflow as tf
+
+seed = 42
+np.random.seed(seed)
+tf.random.set_seed(seed)
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1].values  
+y = df.iloc[:, -1].values    
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=seed)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+ANN_model = Sequential()
+ANN_model.add(Dense(128, input_dim=X_train.shape[1], activation='relu'))  
+ANN_model.add(Dense(64, activation='relu'))  
+ANN_model.add(Dense(1)) 
+ANN_model.compile(optimizer='adam', loss='mean_squared_error')
+
+ANN_model.fit(X_train, y_train, epochs=100, batch_size=10, verbose=1)
+
+y_train_pred = ANN_model.predict(X_train)
+y_test_pred = ANN_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9, marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('ANN',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+plt.savefig('D:\STUDY\SUT\Zero\ANN.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#5.DNN
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from keras.models import Sequential
+from keras.layers import Dense
+import tensorflow as tf
+
+seed = 42
+np.random.seed(seed)
+tf.random.set_seed(seed)
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1].values 
+y = df.iloc[:, -1].values   
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=seed)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+DNN_model = Sequential()
+DNN_model.add(Dense(128, input_dim=X_train.shape[1], activation='relu')) 
+DNN_model.add(Dense(64, activation='relu')) 
+DNN_model.add(Dense(32, activation='relu'))  
+DNN_model.add(Dense(16, activation='relu')) 
+DNN_model.add(Dense(1))  
+
+DNN_model.compile(optimizer='adam', loss='mean_squared_error')
+
+DNN_model.fit(X_train, y_train, epochs=100, batch_size=10, verbose=1) 
+
+y_train_pred = DNN_model.predict(X_train)
+y_test_pred = DNN_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9, marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('DNN',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+plt.savefig('D:\STUDY\SUT\Zero\DNN.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+#6.ET
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.ensemble import ExtraTreesRegressor
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1].values 
+y = df.iloc[:, -1].values  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+ET_model = ExtraTreesRegressor(max_depth=10, random_state=42)
+ET_model.fit(X_train, y_train)
+
+y_train_pred = ET_model.predict(X_train)
+y_test_pred = ET_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('ET',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\ET.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#7.LGBM
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import lightgbm as lgb
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = df.iloc[:, :-1].values 
+y = df.iloc[:, -1].values   
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+train_data = lgb.Dataset(X_train, label=y_train)
+test_data = lgb.Dataset(X_test, label=y_test, reference=train_data)
+
+params = {
+    'objective': 'regression',
+}
+
+LGBM_model = lgb.train(params, train_data, valid_sets=test_data)
+
+y_train_pred = LGBM_model.predict(X_train)
+y_test_pred = LGBM_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('LGBM',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\LGBM.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#8.GBDT
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1] 
+y = data.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+gbdt_model = GradientBoostingRegressor(random_state=42)
+
+gbdt_model.fit(X_train, y_train)
+
+y_train_pred = gbdt_model.predict(X_train)
+y_test_pred = gbdt_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('GBDT',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+plt.savefig('D:\STUDY\SUT\Zero\GBDT.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#9.AB
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import AdaBoostRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1]
+y = data.iloc[:, -1] 
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+adaboost_model = AdaBoostRegressor(base_estimator=DecisionTreeRegressor(max_depth=4),random_state=42)
+
+adaboost_model.fit(X_train, y_train)
+
+y_train_pred = adaboost_model.predict(X_train)
+y_test_pred = adaboost_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('AB',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\AB.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+#10.RIDGE
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1] 
+y = data.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+ridge_model = Ridge(alpha=10,random_state=42)
+
+ridge_model.fit(X_train, y_train)
+
+y_train_pred = ridge_model.predict(X_train)
+y_test_pred = ridge_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('Ridge',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\Ridge.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#11.CATBOOST
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from catboost import CatBoostRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1]  
+y = data.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+Catboost_model = CatBoostRegressor(random_state=42)
+Catboost_model.fit(X_train, y_train)
+
+y_train_pred = Catboost_model.predict(X_train)
+y_test_pred = Catboost_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('CATB',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\CATB.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#12.BR
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import BayesianRidge
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.preprocessing import StandardScaler
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1] 
+y = data.iloc[:, -1]  
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+bayesian_ridge = BayesianRidge()
+bayesian_ridge.fit(X_train, y_train)
+
+y_train_pred = bayesian_ridge.predict(X_train)
+y_test_pred = bayesian_ridge.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('BR',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\BR.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#13.KNN
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1] 
+y = data.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+KNN_model = KNeighborsRegressor() 
+KNN_model.fit(X_train, y_train)
+
+y_train_pred = KNN_model.predict(X_train)
+y_test_pred = KNN_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#438870', alpha=0.9,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='#DB432C', alpha=0.9, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('KNN',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Zero\KNN.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+
+
+
+
+#STEP3:Feature Selection
+#1.PCC+Feature importance
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
+
+# Read the data from Excel
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+# Calculate the correlation matrix
+corr_df = data.corr()
+
+# Save to an Excel file
+output_file = r'D:\STUDY\SUT\PCC+Feature importance\Feature autocorrelation analysis.xlsx'
+corr_df.to_excel(output_file, index=False)
+
+# Prepare for visualization
+fig, ax = plt.subplots(figsize=(25, 25))
+# Draw the heatmap
+ax = sns.heatmap(corr_df, linewidths=.5,
+                 cmap="Spectral_r",
+                 annot=False,
+                 xticklabels=corr_df.columns,
+                 yticklabels=corr_df.index)
+ax.xaxis.set_label_position('bottom')
+ax.xaxis.tick_bottom()
+plt.xticks(rotation=90)
+
+plt.savefig('D:\STUDY\SUT\Description\Heatmap.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+# Extract correlations greater than 0.95 (absolute value)
+high_corrs = corr_df[(corr_df.abs() > 0.95) & (corr_df != 1)]
+
+# Create a DataFrame from the filtered correlations
+high_corrs = high_corrs.stack().reset_index()
+high_corrs.columns = ['Feature1', 'Feature2', 'Correlation']
+
+# Save to an Excel file
+output_file = r'D:\STUDY\SUT\PCC+Feature importance\0.95.xlsx'
+high_corrs.to_excel(output_file, index=False)
+
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1]  
+y = data.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+regressor.fit(X_train, y_train)
+
+importance = regressor.feature_importances_
+
+selected_features = importance >= 0.0007
+
+important_feature_indices = np.where(selected_features)[0]
+important_features = X.columns[important_feature_indices]
+
+result_df = pd.DataFrame(X[important_features])
+result_df['DK'] = y.reset_index(drop=True)
+
+output_file_path = r'D:\STUDY\SUT\PCC+Feature importance\PCC+Feature importance筛选.xlsx'
+result_df.to_excel(output_file_path, index=False)
+
+
+
+#2.Mutual_info_regression
+import pandas as pd
+from sklearn.feature_selection import mutual_info_regression
+from sklearn.model_selection import train_test_split
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.drop(columns=['ε']) 
+y = data['ε'] 
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+mi = mutual_info_regression(X_train, y_train,random_state=42)
+
+mi_df = pd.DataFrame({'Feature': X.columns, 'Mutual Information': mi})
+mi_df = mi_df.sort_values(by='Mutual Information', ascending=False)
+
+output_file_path = 'D:\STUDY\SUT\Mutual_info_regression\Mutual_info_regression评分.xlsx'
+mi_df.to_excel(output_file_path, index=False)
+
+threshold = 0.014
+selected_features = mi_df[mi_df['Mutual Information'] > threshold]['Feature']
+
+selected_data = data[ selected_features.tolist()+['ε'] ]
+
+output_file_path = 'D:\STUDY\SUT\Mutual_info_regression\Mutual_info_regression.xlsx' 
+selected_data.to_excel(output_file_path, index=False)
+
+
+
+#3.LASSO
+import pandas as pd
+from sklearn.linear_model import Lasso
+import numpy as np
+
+data = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Zero')
+
+X = data.iloc[:, :-1] 
+y = data.iloc[:, -1]   
+
+lasso = Lasso(alpha=0.0006, random_state=42)  
+lasso.fit(X, y)
+
+importance = np.abs(lasso.coef_)
+selected_features = np.where(importance > 0)[0]
+
+coefficients_df = pd.DataFrame({
+    'Feature': X.columns,       
+    'Coefficient': lasso.coef_   
+})
+
+coefficients_output_file_path = 'D:\STUDY\SUT\Lassoscore.xlsx' 
+coefficients_df.to_excel(coefficients_output_file_path, index=False)
+
+selected_data = data.iloc[:, list(selected_features) + [-1]] 
+
+selected_data_output_file_path = 'D:\STUDY\SUT\Lasso.xlsx'
+selected_data.to_excel(selected_data_output_file_path, index=False)
+
+
+
+
+
+
+#STEP4:The final selection of the Mutual_info_degression method to filter features shows its performance on various models as follows:
+#1.SVR
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVR
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.preprocessing import StandardScaler
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Mutual_info_regression')
+
+X = df.iloc[:, :-1].values  
+y = df.iloc[:, -1].values    
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+SVR_model = SVR()
+SVR_model.fit(X_train, y_train)
+
+y_train_pred = SVR_model.predict(X_train)
+y_test_pred = SVR_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#082ED0', alpha=1.0,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='green', alpha=1.0, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+
+plt.legend(fontsize=16)
+
+plt.title('SVR',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+plt.savefig('D:\STUDY\SUT\Mutual_info_regression\SVR.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+
+
+#2.XGB
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Mutual_info_regression')
+
+X = df.iloc[:, :-1] 
+y = df.iloc[:, -1] 
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+XGB_model = XGBRegressor(max_depth=4,random_state=42)
+XGB_model.fit(X_train, y_train)
+
+y_train_pred = XGB_model.predict(X_train)
+y_test_pred = XGB_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#082ED0', alpha=1.0,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='green', alpha=1.0, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('XGB',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Mutual_info_regression\XGB.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#3.RF
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Mutual_info_regression')
+
+X = df.iloc[:, :-1] 
+y = df.iloc[:, -1]  
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+RF_model = RandomForestRegressor(n_estimators=150,random_state=42)
+
+RF_model.fit(X_train, y_train)
+
+y_train_pred = RF_model.predict(X_train)
+y_test_pred = RF_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#082ED0', alpha=1.0,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='green', alpha=1.0, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('RF',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+#print(f'Predictions: {y_pred}')
+
+plt.savefig('D:\STUDY\SUT\Mutual_info_regression\RF.png', dpi=300, bbox_inches='tight') 
+plt.show()
+
+
+
+#4.ANN
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from keras.models import Sequential
+from keras.layers import Dense
+import tensorflow as tf
+
+seed = 42
+np.random.seed(seed)
+tf.random.set_seed(seed)
+
+df = pd.read_excel('D:\STUDY\SUT\Dielectricconstant.xlsx', sheet_name='Mutual_info_regression')
+
+X = df.iloc[:, :-1].values 
+y = df.iloc[:, -1].values   
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=seed)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+ANN_model = Sequential()
+ANN_model.add(Dense(256, input_dim=X_train.shape[1], activation='relu'))  
+ANN_model.add(Dense(128, activation='relu')) 
+ANN_model.add(Dense(1))  
+
+ANN_model.compile(optimizer='adam', loss='mean_squared_error')
+
+ANN_model.fit(X_train, y_train, epochs=100, batch_size=10, verbose=1)
+
+y_train_pred = ANN_model.predict(X_train)
+y_test_pred = ANN_model.predict(X_test)
+
+mse_train = mean_squared_error(y_train, y_train_pred)
+rmse_train = np.sqrt(mse_train)
+mae_train = mean_absolute_error(y_train, y_train_pred)
+r2_train = r2_score(y_train, y_train_pred)
+
+mse_test = mean_squared_error(y_test, y_test_pred)
+rmse_test = np.sqrt(mse_test)
+mae_test = mean_absolute_error(y_test, y_test_pred)
+r2_test = r2_score(y_test, y_test_pred)
+
+print(f'MSE: {mse_train:.4f}')
+print(f'RMSE: {rmse_train:.4f}')
+print(f'MAE: {mae_train:.4f}')
+print(f'R²: {r2_train:.4f}')
+print()
+
+print(f'MSE: {mse_test:.4f}')
+print(f'RMSE: {rmse_test:.4f}')
+print(f'MAE: {mae_test:.4f}')
+print(f'R²: {r2_test:.4f}')
+
+plt.figure(figsize=(6, 6))
+
+plt.scatter(y_train, y_train_pred, color='#082ED0', alpha=1.0,marker='o', label='Train Predictions')
+
+plt.scatter(y_test, y_test_pred, color='green', alpha=1.0, marker='^', label='Test Predictions')
+
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', label='Ideal (y=x)')
+plt.legend(fontsize=16)
+
+plt.title('ANN',fontsize=16)
+plt.xlabel('Actual Values',fontsize=16)
+plt.ylabel('Predicted Values',fontsize=16)
+plt.legend()
+plt.grid(False)
+
+plt.tight_layout()
+
+plt.savefig('D:\STUDY\SUT\Mutual_info_regression\ANN.png', dpi=300, bbox_inches='tight') 
+plt.show()
