@@ -2012,3 +2012,47 @@ plt.ylim(0, 8)
 
 plt.savefig(r'E:\gridsearchCV.png', dpi=300, bbox_inches='tight') 
 plt.show()
+
+
+
+
+
+
+
+
+#STEP6:SHAP ANALYSIS
+import shap
+import numpy as np
+import matplotlib.pyplot as plt
+
+explainer = shap.Explainer(ET_model, X_train)
+shap_values = explainer(X_train)
+
+feature_names = df.columns[:-1]
+
+shap_importance = np.abs(shap_values.values).mean(axis=0)
+sorted_idx = np.argsort(shap_importance)[-15:] 
+
+shap.summary_plot(shap_values[:, sorted_idx], X_train[:, sorted_idx], feature_names=feature_names[sorted_idx], plot_type="bar", show=False)
+
+ax = plt.gca()
+
+for bar in ax.patches:
+    bar.set_edgecolor('black') 
+    bar.set_linewidth(1)  
+
+plt.savefig('D:\STUDY\SUT\Hyperparameter Optimization\PCC+Feature importance\SHAP_bar.png', dpi=300, bbox_inches='tight')
+plt.show()
+import shap
+import matplotlib.pyplot as plt
+
+explainer = shap.TreeExplainer(ET_model,X_train) 
+
+shap_values = explainer(X_train) 
+
+print(type(shap_values)) 
+
+plt.figure(figsize=(10, 6)) 
+shap.summary_plot(shap_values, X_train, feature_names=df.columns[:-1],max_display=15, show=False) 
+plt.savefig('D:\STUDY\Hyperparameter Optimization\PCC+Feature importance\SHAP_dot.png', dpi=300, bbox_inches='tight')
+plt.show()
